@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation sample template
+  - provision an S3 bucket to host a static website
+
+## =================== PARAMETERS =================== ##
+Parameters:
+  # StaticWebsiteHostingBucketNamePrefix:
+  #   Description: Specify a unique name for S3 bucket that will host static website
+  #   Type: String
+  #   Default: my-s3-static-website
+  UniqueTagName:
+    Description: Specify a unique name for tag
+    Type: String
+    Default: dev-s3-static-website-hosting
+
+
+## =================== RESOURCES =================== ##
+Resources:
+  # Create a new S3 bucket and configure it to host a static website
+  StaticWebsiteHostingBucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Delete #this bucket can be deleted
+    Properties:
+      BucketName: !Sub "${AWS::AccountId}-static-1234"
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+      VersioningConfiguration:
+        Status: Enabled
+      # AccessControl: PublicRead # throws an error: Bucket cannot have public ACLs set with BlockPublicAccess enabled
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: ObjectWriter
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: mastering-cloudformation
+          Value:  !Ref UniqueTagName
+
+  # Create bucket policy
+  StaticWebsiteHostingBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Sub "${AWS::AccountId}-static-1234"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: PublicReadForGetBucketObjects
+            Effect: Allow
+            Principal: '*'
+            Action: 's3:GetObject'
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Sub "${AWS::AccountId}-static-1234"
+                - /*
+
+## =================== OUTPUT =================== ##
+Outputs:
+  outputWebsiteURL:
+    Value: !GetAtt
+      - StaticWebsiteHostingBucket
+      - WebsiteURL
+    Description: Static website URL

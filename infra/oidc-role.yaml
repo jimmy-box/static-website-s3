@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Create OIDC Role"
+
+Parameters:
+  OrganizationId:
+    Description: Your circleci organization ID
+    Type: String
+    Default: 05f7daf0-018a-4fb7-878b-1f88b2eee849 #change this to match your organization ID in circleCI
+
+  GithubActionsThumbprint:
+    Description: Your circleci organization ID
+    Type: String
+    Default: 9e99a48a9960b14926bb7f3b02e22da2b0ab7280 #Generate a thumbprint in your AWS identity provider
+ 
+
+
+
+Resources:
+  
+#-------------------------------------
+#GitHub Identity provider
+#-------------------------------------
+GitHubIdentityProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: !Sub "https://oidc.circleci.com/org/${OrganizationId}"
+      ThumbprintList: !Ref GithubActionsThumbprint 
+    Tag:
+      Key: "Name"
+      Value: "openidCF"
+
+#----------------------------------------------------------------------#
+# OIDC IAM Role
+#----------------------------------------------------------------------#
+  SciCommsApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: OIDCRoleCircleCI
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.circleci.com/org/${OrganizationId}"
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                !Sub "oidc.circleci.com/org/${OrganizationId}:aud":"${OrganizationId}"
+              StringLike:
+                !Sub "oidc.circleci.com/org/${OrganizationId}:sub": "org/${OrganizationId}/project/PROJECT_ID/user/*"
+      
+

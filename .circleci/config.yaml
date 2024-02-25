@@ -1,0 +1,109 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@4.1.2
+  aws-ecr: circleci/aws-ecr@7.3.0
+
+jobs:
+  build:
+    executor: aws-cli/default
+    environment:
+      TERM: xterm
+    parameters:
+      environment:
+        type: string
+
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: install dependencies
+          command: |
+            apt-get install splint
+      - run:
+          name: validate cloudformation template
+          command: |
+            cfn-lint s3-resources.yaml
+      - run:
+          name: build web app
+          command: |
+            cfn-lint s3-resources.yaml
+
+  test:
+    executor: aws-cli/default
+    environment:
+      TERM: xterm
+    parameters:
+      environment:
+        type: string
+
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: build the application
+          command: |
+            cfn-lint s3-resources.yaml
+
+
+
+  deploy:
+    executor: docker
+    environment:
+      TERM: xterm
+    parameters:
+      environment:
+        type: string
+
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/project
+      - run:
+          name: deploy infrastructure
+          command: |
+            aws cloudformation deploy --stack-name s3-static-website --template-file infra/s3-resources.yaml  --no-fail-on-empty-changeset --capabilities CAPABILITY_NAMED_IAM
+            aws s3 sync . my-s3-website
+      - run:
+          name: deploy application
+          command: |
+            aws s3 sync . my-s3-website
+
+## Commit to a branch
+commit: &only_commit
+  filters:
+    branches:
+        only:
+            - main
+
+
+## For main workflow
+only_on_main_branch: &only_on_main_branch
+  filters:
+    branches:
+      only: main
+
+workflows:
+  version: 2.1
+
+#Dev deployment
+  deploy-dev:
+    jobs:
+      - build:
+          context: dev-context
+          <<: *only_commit
+          environment: dev
+      - test:
+          context: dev-context
+          <<: *only_commit
+          environment: dev
+          requires:
+            - build
+      - deploy:
+          context: dev-context
+          <<: *only_commit
+          environment: dev
+          requires:
+            - test
